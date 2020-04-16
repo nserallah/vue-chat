@@ -10,14 +10,14 @@
             </div>
           </div>
           <div class="inbox_chat">
-            <div class="chat_list active_chat">
+            <div @click="showOurMsg" class="chat_list active_chat">
               <div class="chat_people">
-                <div class="chat_img"> <img src="https://ptetutorials.com/images/user-profile.png" alt="sunil"> </div>
+                <div class="chat_img"> <img :src="authAvatar" alt="sunil"> </div>
                 <div class="chat_ib">
-                  <h5>{{authUser.displayName == 'Nserallah Ahmed' ? 'Nser ahmed' : 'Nserallah Ahmed'}}<span class="chat_date">04:50 pm </span></h5>
+                  <h5>{{sendMeName}}<span class="chat_date">04:50 pm </span></h5>
                   <p>Test, which is a new approach to have all solutions 
                     astrology under one roof.</p>
-                    <p class="messages-counter">{{messages.length}} Message</p>
+                    <p v-if="incomMsgCount > 0" class="messages-counter">You Have {{incomMsgCount}} New Messages</p>
                 </div>
               </div>
             </div>
@@ -37,16 +37,19 @@
                     <div :class="[message.author === authUser.displayName ? 'outgoing_msg' : 'received_msg']">
                         <div :class="[message.author === authUser.displayName ? 'sent_msg' : 'received_withd_msg']">
                         <p>{{ message.message }}</p>
-                        <span class="time_date"> {{message.author}}    |   {{ message.createdAt }}</span>
+                        <span class="time_date"> {{message.author}} | {{ message.createdAt }}</span>
                         </div>
                     </div>
                 </div>
             </div>
            
           </div>
+
+          <!-- <p v-if="incomMsgCount == 0">seen</p> -->
+          
           <div class="type_msg">
             <div class="input_msg_write">
-              <input @keyup.enter="saveMessage()" v-model="message" type="text" class="write_msg" placeholder="Type a message" />
+              <input @click="showOurMsg()" @keyup.enter="saveMessage()" v-model="message" type="text" class="write_msg" placeholder="Type a message" />
               <button @click.prevent="saveMessage()" class="msg_send_btn" type="button"><i class="fas fa-paper-plane" aria-hidden="true"></i></button>
             </div>
           </div>
@@ -66,7 +69,11 @@ export default {
         return {
             message: null,
             messages: [],
-            authUser: {}, 
+            authUser: {},
+            incomMsgCount: 0,
+            sendMeName: '',
+            authAvatar: '',
+            // test: false
         }
     },
     
@@ -78,8 +85,17 @@ export default {
                 message: this.message,
                 author: this.authUser.displayName,
                 userAvatar: this.authUser.photoURL,
-                createdAt: moment(this.messages.timestamp).format('LTS')
-            })
+                createdAt: moment(this.messages.timestamp).format('LTS'),
+                id: null,
+                read: false,
+                seen: false,
+            }).then(function(docRef) {
+        db.collection('chat').doc(docRef.id).update({
+          id: docRef.id
+        })
+})
+
+            this.showOurMsg()
             this.message = null 
         },
         fechMessages() {
@@ -88,13 +104,51 @@ export default {
                 querySnapshot.forEach(doc => {
                     allMessages.push(doc.data());
                 })
-                this.messages = allMessages;
                 
+
+                this.incomMsgCount = 0
+                allMessages.forEach(msg => {
+                  if(msg.author !== this.authUser.displayName) {
+                    this.sendMeName = msg.author;
+                    this.authAvatar = msg.userAvatar;
+
+                    !msg.read? this.incomMsgCount++ : null
+                  }
+
+                  // if(msg.author === this.authUser.displayName){
+                  //   msg.seen ? this.test = false : this.test = true
+                  // }
+                })
+                this.messages = allMessages;
             })  
         },
+        showOurMsg() {
+          
+          this.messages.forEach(msg => {
+              if(msg.author !== this.authUser.displayName) {
+                this.incomMsgCount = 0; 
+                              
+                db.collection('chat').doc(msg.id).update({
+                  read:true
+                })
+          
+              }
+              // if(msg.author == this.authUser.displayName) {
+              //   db.collection('chat').doc(msg.id).update({
+              //     seen:true
+              //   });
+
+              //   msg.seen ? this.test = false : this.test = true
+
+              // }
+              
+              
+            });
+        }
     },
     created() {
         firebase.auth().onAuthStateChanged(user => {
+         
                 if(user){
                    this.authUser = user;
                 } else {
@@ -102,9 +156,7 @@ export default {
                 }
             })
 
-        this.fechMessages();
-        
-        
+        this.fechMessages();   
     },
     beforeRouteEnter(to, from, next) {
         next(vm => {
